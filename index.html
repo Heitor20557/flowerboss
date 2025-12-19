@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cuphead JS - Cagney Carnation Clone</title>
+    <style>
+        body { margin: 0; background: #222; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Courier New', Courier, monospace; }
+        canvas { background: #87ceeb; border: 5px solid #444; box-shadow: 0 0 20px rgba(0,0,0,0.5); image-rendering: pixelated; }
+        #ui { position: absolute; top: 20px; left: 20px; color: white; text-shadow: 2px 2px black; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    HP: <span id="hp">3</span> | Boss HP: <span id="boss-hp">100</span>
+</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 450;
+
+// Configurações Globais
+const GRAVITY = 0.5;
+const keys = {};
+
+// Classes do Jogo
+class Player {
+    constructor() {
+        this.width = 40;
+        this.height = 60;
+        this.x = 100;
+        this.y = canvas.height - 100;
+        this.vx = 0;
+        this.vy = 0;
+        this.speed = 5;
+        this.jumpPower = -12;
+        this.grounded = false;
+        this.hp = 3;
+        this.isParrying = false;
+    }
+
+    draw() {
+        ctx.fillStyle = this.isParrying ? '#ff69b4' : 'red'; // Rosa se parry, vermelho se normal
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+
+    update() {
+        // Movimentação
+        if (keys['ArrowLeft']) this.vx = -this.speed;
+        else if (keys['ArrowRight']) this.vx = this.speed;
+        else this.vx = 0;
+
+        // Pulo e Parry (Tecla Z)
+        if (keys['z'] && this.grounded) {
+            this.vy = this.jumpPower;
+            this.grounded = false;
+        }
+
+        this.y += this.vy;
+        this.x += this.vx;
+        this.vy += GRAVITY;
+
+        // Chão simples
+        if (this.y + this.height > canvas.height - 20) {
+            this.y = canvas.height - 20 - this.height;
+            this.vy = 0;
+            this.grounded = true;
+        }
+    }
+}
+
+class Boss {
+    constructor() {
+        this.width = 120;
+        this.height = 200;
+        this.x = canvas.width - 150;
+        this.y = canvas.height - 220;
+        this.hp = 100;
+        this.phase = 'idle';
+        this.timer = 0;
+    }
+
+    draw() {
+        ctx.fillStyle = this.hp < 40 ? '#8b4513' : 'orange'; // Muda cor na fase de fúria
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        // "Caule"
+        ctx.fillStyle = 'green';
+        ctx.fillRect(this.x + 50, this.y + 200, 20, 50);
+    }
+
+    update() {
+        this.timer++;
+        // Lógica simples de ataque a cada 2 segundos
+        if (this.timer % 120 === 0) {
+            this.attack();
+        }
+    }
+
+    attack() {
+        // Placeholder para lógica de disparar sementes ou esticar o rosto
+        console.log("Boss Atacando!");
+    }
+}
+
+class Platform {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 80;
+        this.height = 15;
+        this.isParryable = true;
+    }
+
+    draw() {
+        ctx.fillStyle = '#ff69b4'; // Rosa para indicar Parry
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+    }
+}
+
+// Inicialização
+const player = new Player();
+const boss = new Boss();
+const platforms = [
+    new Platform(100, 300),
+    new Platform(250, 250),
+    new Platform(400, 300)
+];
+
+const bullets = [];
+
+// Input
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+// Loop Principal
+function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Atualização
+    player.update();
+    boss.update();
+
+    // Atirar (Tecla X)
+    if (keys['x'] && player.timer % 10 === 0) {
+        bullets.push({x: player.x + player.width, y: player.y + 20, speed: 10});
+    }
+
+    // Colisões e Desenho das Balas
+    bullets.forEach((b, index) => {
+        b.x += b.speed;
+        ctx.fillStyle = 'yellow';
+        ctx.fillRect(b.x, b.y, 10, 5);
+
+        // Hit no Boss
+        if (b.x > boss.x && b.x < boss.x + boss.width && b.y > boss.y && b.y < boss.y + boss.height) {
+            boss.hp -= 1;
+            bullets.splice(index, 1);
+            document.getElementById('boss-hp').innerText = boss.hp;
+        }
+    });
+
+    // Desenho
+    platforms.forEach(p => {
+        p.draw();
+        // Colisão simples de plataforma
+        if (player.vy > 0 && 
+            player.x < p.x + p.width && 
+            player.x + player.width > p.x && 
+            player.y + player.height > p.y && 
+            player.y + player.height < p.y + p.height + 10) {
+            player.y = p.y - player.height;
+            player.vy = 0;
+            player.grounded = true;
+        }
+    });
+
+    player.draw();
+    boss.draw();
+
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
