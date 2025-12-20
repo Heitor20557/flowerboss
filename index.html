@@ -2,16 +2,16 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Floral Fury & Umbrella Evolution</title>
+    <title>Floral Fury - Boss Fight</title>
     <style>
         body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Arial Black', sans-serif; }
         canvas { background: #5c8cae; border: 6px solid #222; box-shadow: 0 0 50px #000; }
-        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; z-index: 10; }
+        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; }
     </style>
 </head>
 <body>
 
-<div id="hud">HP: <span id="hp-val">3</span> | BOSS: <span id="boss-lvl">FLOR FASE 1</span></div>
+<div id="hud">HP: <span id="hp-val">3</span> | BOSS: <span id="boss-lvl">FASE 1</span></div>
 <canvas id="gameCanvas"></canvas>
 
 <script>
@@ -21,191 +21,171 @@ canvas.width = 800; canvas.height = 450;
 
 let gameState = 'MENU';
 const keys = {};
-let rainParticles = [];
 
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
-    if (gameState === 'MENU' && e.code === 'Enter') restartGame();
-    else if (gameState === 'NEXT_BOSS' && e.code === 'Enter') startSecondBoss();
-    else if ((gameState === 'GAMEOVER' || gameState === 'WIN') && e.code === 'Enter') restartGame();
+    if (gameState !== 'PLAYING' && e.code === 'Enter') restartGame();
 });
 window.addEventListener('keyup', e => keys[e.code] = false);
 
-let player, boss, umbrellaBoss, pBullets, bBullets, platforms;
+let player, boss, pBullets, bBullets, platforms;
 
 function restartGame() {
-    // Reset Player
-    player = { x: 100, y: 300, w: 35, h: 50, vx: 0, vy: 0, speed: 5, jump: -14, grounded: false, hp: 3, shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false };
-    
-    // Reset Boss 1 (Flor - Mantendo código original)
-    boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0, active: true };
-    
-    // Reset Boss 2 (Guarda-Chuva - Sistema Diferente)
-    umbrellaBoss = { x: 400, y: -200, w: 160, h: 120, hp: 150, phase: 1, attackTimer: 0, active: false, vx: 3, vy: 2 };
-
-    pBullets = []; bBullets = []; rainParticles = [];
-    platforms = [{x: 80, y: 310, w: 100, h: 15}, {x: 230, y: 230, w: 100, h: 15}, {x: 380, y: 310, w: 100, h: 15}];
+    player = {
+        x: 100, y: 300, w: 35, h: 50, vx: 0, vy: 0, 
+        speed: 5, jump: -14, grounded: false, hp: 3,
+        shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false
+    };
+    boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0 };
+    pBullets = []; bBullets = [];
+    platforms = [
+        {x: 80, y: 310, w: 100, h: 15},
+        {x: 230, y: 230, w: 100, h: 15},
+        {x: 380, y: 310, w: 100, h: 15}
+    ];
     
     gameState = 'PLAYING';
     document.getElementById('hud').style.display = 'block';
     
-    // CORREÇÃO: Reset do HUD para Fase 1 ao morrer/reiniciar
-    document.getElementById('boss-lvl').innerText = "FLOR FASE 1";
-    document.getElementById('hp-val').innerText = player.hp;
-}
-
-function startSecondBoss() {
-    // CORREÇÃO: Reset de posição do personagem ao mudar de boss
-    player.x = 100;
-    player.y = 300;
-    player.vx = 0;
-    player.vy = 0;
-    player.hp = 3; 
-    
-    document.getElementById('hp-val').innerText = player.hp;
-    umbrellaBoss.active = true;
-    umbrellaBoss.y = 50;
-    gameState = 'PLAYING';
-    document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 1";
-    
-    // Chuva
-    rainParticles = [];
-    for(let i=0; i<50; i++) rainParticles.push({x: Math.random()*800, y: Math.random()*450, s: Math.random()*5+2});
+    // CORREÇÃO 1: Garante que o HUD volte para Fase 1 e HP 3 ao morrer
+    document.getElementById('hp-val').innerText = "3";
+    document.getElementById('boss-lvl').innerText = "FASE 1";
 }
 
 function checkRectCollision(a, b) {
-    let bw = b.w || b.size || 10;
-    let bh = b.h || b.size || 10;
-    return a.x < b.x + bw && a.x + (a.w || 35) > b.x && a.y < b.y + bh && a.y + (a.h || 50) > b.y;
+    return a.x < b.x + (b.w || b.size || 10) && a.x + (a.w || a.size || 10) > b.x &&
+           a.y < b.y + (b.h || b.size || 10) && a.y + (a.h || a.size || 10) > b.y;
 }
 
 function update() {
     if (gameState !== 'PLAYING') return;
 
-    if (umbrellaBoss.active) {
-        rainParticles.forEach(p => { p.y += p.s; if (p.y > 450) p.y = -10; });
+    if (keys['KeyC'] && player.dashTimer <= 0) {
+        player.isDashing = true;
+        player.dashTimer = 40;
+        player.invul = 15;
     }
 
-    // Movimentação Player
-    if (keys['KeyC'] && player.dashTimer <= 0) { player.isDashing = true; player.dashTimer = 40; player.invul = 15; }
-    if (player.isDashing) { player.vx = 15; if (player.dashTimer < 25) player.isDashing = false; } 
-    else {
+    if (player.isDashing) {
+        player.vx = 15;
+        if (player.dashTimer < 25) player.isDashing = false;
+    } else {
         if (keys['ArrowLeft']) player.vx = -player.speed;
         else if (keys['ArrowRight']) player.vx = player.speed;
         else player.vx = 0;
     }
+
     if (player.dashTimer > 0) player.dashTimer--;
-    if ((keys['Space'] || keys['KeyZ']) && player.grounded) { player.vy = player.jump; player.grounded = false; }
-    player.vy += 0.7; player.x += player.vx; player.y += player.vy;
 
-    if (player.y + player.h > canvas.height - 40) { player.y = canvas.height - 40 - player.h; player.vy = 0; player.grounded = true; }
-    platforms.forEach(p => { if (player.vy > 0 && checkRectCollision(player, p) && player.y + player.h < p.y + 15) { player.y = p.y - player.h; player.vy = 0; player.grounded = true; } });
+    if ((keys['Space'] || keys['KeyZ']) && player.grounded) {
+        player.vy = player.jump;
+        player.grounded = false;
+    }
 
-    // Tiros Player
-    if (keys['KeyX'] && player.shootTimer <= 0) { pBullets.push({x: player.x + player.w, y: player.y + 15, size: 8}); player.shootTimer = 10; }
+    player.vy += 0.7;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if (player.y + player.h > canvas.height - 40) {
+        player.y = canvas.height - 40 - player.h; player.vy = 0; player.grounded = true;
+    }
+    platforms.forEach(p => {
+        if (player.vy > 0 && checkRectCollision(player, p) && player.y + player.h < p.y + 15) {
+            player.y = p.y - player.h; player.vy = 0; player.grounded = true;
+        }
+    });
+
+    if (keys['KeyX'] && player.shootTimer <= 0) {
+        pBullets.push({x: player.x + player.w, y: player.y + 15, size: 8});
+        player.shootTimer = 10;
+    }
     if (player.shootTimer > 0) player.shootTimer--;
 
     pBullets.forEach((b, i) => {
         b.x += 12;
-        if (boss.active && checkRectCollision(b, boss)) { boss.hp -= 1.2; pBullets.splice(i, 1); } 
-        else if (umbrellaBoss.active && checkRectCollision(b, umbrellaBoss)) { umbrellaBoss.hp -= 1.5; pBullets.splice(i, 1); }
-        else if (b.x > canvas.width) pBullets.splice(i, 1);
+        if (checkRectCollision(b, boss)) {
+            boss.hp -= 1.2;
+            pBullets.splice(i, 1);
+        }
+        if (b.x > canvas.width) pBullets.splice(i, 1);
     });
 
-    // BOSS 1: FLOR
-    if (boss.active) {
-        boss.attackTimer++;
-        if (boss.hp < 66 && boss.phase === 1) { boss.phase = 2; document.getElementById('boss-lvl').innerText = "FLOR FASE 2"; }
-        if (boss.hp < 33 && boss.phase === 2) { boss.phase = 3; document.getElementById('boss-lvl').innerText = "FLOR FASE FINAL"; }
-        if (boss.phase === 1 && boss.attackTimer % 90 === 0) bBullets.push({x: boss.x, y: 150, vx: -6, vy: 0, size: 20, color: 'orange'});
-        else if (boss.phase === 2 && boss.attackTimer % 70 === 0) { let ang = Math.atan2(player.y - 150, player.x - boss.x); bBullets.push({x: boss.x, y: 150, vx: Math.cos(ang)*7, vy: Math.sin(ang)*7, size: 15, color: 'yellow'}); }
-        else if (boss.phase === 3 && boss.attackTimer % 50 === 0) bBullets.push({x: player.x, y: 0, vx: 0, vy: 8, size: 25, color: '#ff00ff'});
-        if (boss.hp <= 0) { boss.active = false; bBullets = []; gameState = 'NEXT_BOSS'; }
-    } 
+    boss.attackTimer++;
     
-    // BOSS 2: UMBRELLA
-    else if (umbrellaBoss.active) {
-        umbrellaBoss.attackTimer++;
-        if (umbrellaBoss.phase === 1) {
-            umbrellaBoss.x += umbrellaBoss.vx; umbrellaBoss.y = 50 + Math.sin(umbrellaBoss.attackTimer * 0.05) * 30;
-            if (umbrellaBoss.x > 600 || umbrellaBoss.x < 50) umbrellaBoss.vx *= -1;
-            if (umbrellaBoss.attackTimer % 50 === 0) bBullets.push({x: umbrellaBoss.x + 80, y: umbrellaBoss.y + 100, vx: 0, vy: 5, size: 12, color: '#3498db'});
-        } 
-        else if (umbrellaBoss.phase === 2) {
-            if (umbrellaBoss.attackTimer % 120 < 60) {
-                umbrellaBoss.x += (player.x - umbrellaBoss.x) * 0.05; umbrellaBoss.y += (30 - umbrellaBoss.y) * 0.1; umbrellaBoss.w = 60;
-            } else { umbrellaBoss.y += 15; if (umbrellaBoss.y > 450) umbrellaBoss.y = -100; }
-            if (umbrellaBoss.attackTimer % 30 === 0) bBullets.push({x: umbrellaBoss.x, y: umbrellaBoss.y, vx: -5, vy: 0, size: 10, color: 'white'});
-        }
-        else if (umbrellaBoss.phase === 3) {
-            umbrellaBoss.x += (320 - umbrellaBoss.x) * 0.05; umbrellaBoss.y += (100 - umbrellaBoss.y) * 0.05; umbrellaBoss.w = 160;
-            if (player.x < umbrellaBoss.x + 80) player.x += 1; else player.x -= 1;
-            if (umbrellaBoss.attackTimer % 20 === 0) {
-                let ang = Math.random() * Math.PI * 2;
-                bBullets.push({x: umbrellaBoss.x + 80, y: umbrellaBoss.y + 50, vx: Math.cos(ang)*6, vy: Math.sin(ang)*6, size: 10, color: '#f1c40f'});
-            }
-        }
-        if (umbrellaBoss.hp < 100 && umbrellaBoss.phase === 1) { umbrellaBoss.phase = 2; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 2"; }
-        if (umbrellaBoss.hp < 50 && umbrellaBoss.phase === 2) { umbrellaBoss.phase = 3; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE FINAL"; }
-        if (umbrellaBoss.hp <= 0) gameState = 'WIN';
+    // Lógica de Fases
+    if (boss.hp < 66 && boss.phase === 1) { 
+        boss.phase = 2; 
+        document.getElementById('boss-lvl').innerText = "FASE 2"; 
+        // CORREÇÃO 2: Reseta posição do player ao mudar de fase
+        player.x = 100; player.y = 300; 
+    }
+    if (boss.hp < 33 && boss.phase === 2) { 
+        boss.phase = 3; 
+        document.getElementById('boss-lvl').innerText = "FASE FINAL"; 
+        player.x = 100; player.y = 300;
+    }
+
+    if (boss.phase === 1 && boss.attackTimer % 90 === 0) {
+        bBullets.push({x: boss.x, y: 150, vx: -6, vy: 0, size: 20, color: 'orange'});
+    } 
+    else if (boss.phase === 2 && boss.attackTimer % 70 === 0) {
+        let angle = Math.atan2(player.y - 150, player.x - boss.x);
+        bBullets.push({x: boss.x, y: 150, vx: Math.cos(angle)*7, vy: Math.sin(angle)*7, size: 15, color: 'yellow'});
+    }
+    else if (boss.phase === 3 && boss.attackTimer % 50 === 0) {
+        bBullets.push({x: player.x, y: 0, vx: 0, vy: 8, size: 25, color: '#ff00ff'});
     }
 
     bBullets.forEach((b, i) => {
-        b.x += (b.vx || 0); b.y += (b.vy || 0);
+        b.x += b.vx; b.y += b.vy;
         if (checkRectCollision(b, player) && player.invul <= 0) {
-            player.hp--; player.invul = 60; document.getElementById('hp-val').innerText = player.hp; bBullets.splice(i, 1);
+            player.hp--; player.invul = 60;
+            document.getElementById('hp-val').innerText = player.hp;
+            bBullets.splice(i, 1);
         }
-        if (b.x < -100 || b.x > 900 || b.y > canvas.height + 50) bBullets.splice(i, 1);
+        if (b.x < -50 || b.y > canvas.height) bBullets.splice(i, 1);
     });
 
     if (player.invul > 0) player.invul--;
     if (player.hp <= 0) gameState = 'GAMEOVER';
+    if (boss.hp <= 0) gameState = 'WIN';
 }
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (umbrellaBoss.active) {
-        ctx.strokeStyle = 'rgba(174, 214, 241, 0.4)'; ctx.lineWidth = 1;
-        rainParticles.forEach(p => { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y+10); ctx.stroke(); });
-    }
     ctx.fillStyle = '#4e7a2a'; ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
 
-    if (gameState === 'PLAYING') {
+    if (gameState === 'MENU') {
+        ctx.fillStyle = 'white'; ctx.textAlign = 'center';
+        ctx.font = '40px Arial Black'; ctx.fillText('FLORAL FURY', 400, 200);
+        ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO START', 400, 250);
+    } 
+    else if (gameState === 'PLAYING') {
         ctx.fillStyle = '#ff69b4'; platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
-        if (boss.active) {
-            ctx.fillStyle = '#2d5a27'; ctx.fillRect(boss.x + 80, 230, 30, 250);
-            ctx.fillStyle = boss.phase === 3 ? '#8b0000' : '#ff8c00';
-            ctx.beginPath(); ctx.arc(boss.x + 90, 150, 80, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#f7e442'; ctx.fillRect(boss.x + 50, 110, 80, 80);
-        }
-        if (umbrellaBoss.active) {
-            ctx.save(); ctx.translate(umbrellaBoss.x + umbrellaBoss.w/2, umbrellaBoss.y + 50);
-            if (umbrellaBoss.phase === 2 && umbrellaBoss.y > 50) ctx.rotate(Math.PI);
-            ctx.fillStyle = umbrellaBoss.phase === 3 ? '#5b2c6f' : '#2e86c1'; ctx.strokeStyle = 'white'; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(0, 0, umbrellaBoss.w/2, Math.PI, 0); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 80); ctx.stroke(); ctx.restore();
-        }
+        
+        ctx.fillStyle = '#2d5a27'; ctx.fillRect(boss.x + 80, 230, 30, 250); // Caule
+        
+        ctx.fillStyle = boss.phase === 3 ? '#8b0000' : '#ff8c00';
+        ctx.beginPath(); ctx.arc(boss.x + 90, 150, 80, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#f7e442'; ctx.fillRect(boss.x + 50, 110, 80, 80);
+
         ctx.fillStyle = player.invul % 4 > 1 ? 'transparent' : (player.isDashing ? 'white' : 'red');
         ctx.fillRect(player.x, player.y, player.w, player.h);
+
         ctx.fillStyle = '#00f2ff'; pBullets.forEach(b => ctx.fillRect(b.x, b.y, b.size, b.size));
         bBullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.size, b.size); });
-    } else {
-        ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,800,450);
-        ctx.fillStyle = 'white'; ctx.textAlign = 'center';
-        if (gameState === 'MENU') { ctx.font = '40px Arial Black'; ctx.fillText('FLORAL FURY', 400, 200); ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO START', 400, 250); }
-        if (gameState === 'NEXT_BOSS') { ctx.fillStyle = '#3498db'; ctx.font = '40px Arial Black'; ctx.fillText('BOSS 2: UMBRELLA', 400, 200); ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO CONTINUE', 400, 250); }
-        if (gameState === 'GAMEOVER') { ctx.fillStyle = 'red'; ctx.font = '60px Arial Black'; ctx.fillText('GAME OVER', 400, 200); ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO RESTART', 400, 280); }
-        if (gameState === 'WIN') { ctx.fillStyle = 'gold'; ctx.font = '60px Arial Black'; ctx.fillText('YOU WIN!', 400, 200); ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO REPLAY', 400, 280); }
+    } 
+    else {
+        ctx.fillStyle = 'black'; ctx.fillRect(0,0,800,450);
+        ctx.fillStyle = gameState === 'GAMEOVER' ? 'red' : 'gold';
+        ctx.textAlign = 'center'; ctx.font = '60px Arial Black';
+        ctx.fillText(gameState === 'GAMEOVER' ? 'GAME OVER' : 'KNOCKOUT!', 400, 200);
+        ctx.fillStyle = 'white'; ctx.font = '20px Arial';
+        ctx.fillText('PRESS ENTER TO RESTART', 400, 280);
     }
+    requestAnimationFrame(() => { update(); draw(); });
 }
-
-function gameLoop() {
-    update();
-    draw();
-    requestAnimationFrame(gameLoop);
-}
-
-gameLoop();
+draw();
 </script>
 </body>
 </html>
