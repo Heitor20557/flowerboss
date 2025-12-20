@@ -6,7 +6,7 @@
     <style>
         body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Arial Black', sans-serif; }
         canvas { background: #5c8cae; border: 6px solid #222; box-shadow: 0 0 50px #000; }
-        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; }
+        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; z-index: 100; }
     </style>
 </head>
 <body>
@@ -34,13 +34,9 @@ window.addEventListener('keyup', e => keys[e.code] = false);
 let player, boss, umbrellaBoss, pBullets, bBullets, platforms;
 
 function restartGame() {
-    // Reset Player
+    // Reset Player e HUD
     player = { x: 100, y: 300, w: 35, h: 50, vx: 0, vy: 0, speed: 5, jump: -14, grounded: false, hp: 3, shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false };
-    
-    // Reset Boss 1 (Flor)
     boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0, active: true };
-    
-    // Reset Boss 2 (Guarda-Chuva) - Sistema de Movimento Livre
     umbrellaBoss = { x: 400, y: -200, w: 160, h: 120, hp: 150, phase: 1, attackTimer: 0, active: false, vx: 3, vy: 2 };
 
     pBullets = []; bBullets = []; rainParticles = [];
@@ -48,19 +44,13 @@ function restartGame() {
     
     gameState = 'PLAYING';
     document.getElementById('hud').style.display = 'block';
-    
-    // RESOLVIDO: O HUD volta para Fase 1 ao reiniciar
     document.getElementById('boss-lvl').innerText = "FLOR FASE 1";
     document.getElementById('hp-val').innerText = player.hp;
 }
 
 function startSecondBoss() {
-    // RESOLVIDO: Personagem volta para a posição inicial no novo boss
-    player.x = 100;
-    player.y = 300;
-    player.vx = 0;
-    player.vy = 0;
-    player.hp = 3; // Vida cheia para o novo boss
+    // RESOLVIDO: Reset de posição do personagem para o início
+    player.x = 100; player.y = 300; player.vx = 0; player.vy = 0; player.hp = 3;
     
     document.getElementById('hp-val').innerText = player.hp;
     umbrellaBoss.active = true;
@@ -68,7 +58,6 @@ function startSecondBoss() {
     gameState = 'PLAYING';
     document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 1";
     
-    // Efeito de Chuva
     rainParticles = [];
     for(let i=0; i<50; i++) rainParticles.push({x: Math.random()*800, y: Math.random()*450, s: Math.random()*5+2});
 }
@@ -76,7 +65,7 @@ function startSecondBoss() {
 function checkRectCollision(a, b) {
     let bw = b.w || b.size || 10;
     let bh = b.h || b.size || 10;
-    return a.x < b.x + bw && a.x + (a.w || 10) > b.x && a.y < b.y + bh && a.y + (a.h || 10) > b.y;
+    return a.x < b.x + bw && a.x + (a.w || 35) > b.x && a.y < b.y + bh && a.y + (a.h || 50) > b.y;
 }
 
 function update() {
@@ -86,7 +75,7 @@ function update() {
         rainParticles.forEach(p => { p.y += p.s; if (p.y > 450) p.y = -10; });
     }
 
-    // Player Logic (Dash e Movimento)
+    // Movimentação Player
     if (keys['KeyC'] && player.dashTimer <= 0) { player.isDashing = true; player.dashTimer = 40; player.invul = 15; }
     if (player.isDashing) { player.vx = 15; if (player.dashTimer < 25) player.isDashing = false; } 
     else {
@@ -96,6 +85,7 @@ function update() {
     }
     if (player.dashTimer > 0) player.dashTimer--;
     if ((keys['Space'] || keys['KeyZ']) && player.grounded) { player.vy = player.jump; player.grounded = false; }
+    
     player.vy += 0.7; player.x += player.vx; player.y += player.vy;
 
     if (player.y + player.h > canvas.height - 40) { player.y = canvas.height - 40 - player.h; player.vy = 0; player.grounded = true; }
@@ -107,12 +97,12 @@ function update() {
 
     pBullets.forEach((b, i) => {
         b.x += 12;
-        if (boss.active && checkRectCollision(b, boss)) { boss.hp -= 1.2; pBullets.splice(i, 1); } 
+        if (boss.active && checkRectCollision(b, boss)) { boss.hp -= 1.5; pBullets.splice(i, 1); } 
         else if (umbrellaBoss.active && checkRectCollision(b, umbrellaBoss)) { umbrellaBoss.hp -= 1.5; pBullets.splice(i, 1); }
         else if (b.x > canvas.width) pBullets.splice(i, 1);
     });
 
-    // SISTEMA BOSS 1: FLOR
+    // BOSS 1: FLOR
     if (boss.active) {
         boss.attackTimer++;
         if (boss.hp < 66 && boss.phase === 1) { boss.phase = 2; document.getElementById('boss-lvl').innerText = "FLOR FASE 2"; }
@@ -123,7 +113,7 @@ function update() {
         if (boss.hp <= 0) { boss.active = false; bBullets = []; gameState = 'NEXT_BOSS'; }
     } 
     
-    // NOVO SISTEMA BOSS 2: GUARDA-CHUVA
+    // BOSS 2: GUARDA-CHUVA
     else if (umbrellaBoss.active) {
         umbrellaBoss.attackTimer++;
         if (umbrellaBoss.phase === 1) {
@@ -132,9 +122,8 @@ function update() {
             if (umbrellaBoss.attackTimer % 50 === 0) bBullets.push({x: umbrellaBoss.x + 80, y: umbrellaBoss.y + 100, vx: 0, vy: 5, size: 12, color: '#3498db'});
         } 
         else if (umbrellaBoss.phase === 2) {
-            if (umbrellaBoss.attackTimer % 120 < 60) {
-                umbrellaBoss.x += (player.x - umbrellaBoss.x) * 0.05; umbrellaBoss.y += (30 - umbrellaBoss.y) * 0.1; umbrellaBoss.w = 60;
-            } else { umbrellaBoss.y += 15; if (umbrellaBoss.y > 450) umbrellaBoss.y = -100; }
+            if (umbrellaBoss.attackTimer % 120 < 60) { umbrellaBoss.x += (player.x - umbrellaBoss.x) * 0.05; umbrellaBoss.y += (30 - umbrellaBoss.y) * 0.1; umbrellaBoss.w = 60; } 
+            else { umbrellaBoss.y += 15; if (umbrellaBoss.y > 450) umbrellaBoss.y = -100; }
             if (umbrellaBoss.attackTimer % 30 === 0) bBullets.push({x: umbrellaBoss.x, y: umbrellaBoss.y, vx: -5, vy: 0, size: 10, color: 'white'});
         }
         else if (umbrellaBoss.phase === 3) {
@@ -146,12 +135,8 @@ function update() {
             }
         }
         if (umbrellaBoss.hp < 100 && umbrellaBoss.phase === 1) { umbrellaBoss.phase = 2; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 2"; }
-        if (umbrellaBoss.hp < 50 && umbrellaBoss.phase === 2) { umbrellaBoss.phase = 3; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE FINAL"; umbrellaBoss.w = 160; }
+        if (umbrellaBoss.hp < 50 && umbrellaBoss.phase === 2) { umbrellaBoss.phase = 3; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE FINAL"; }
         if (umbrellaBoss.hp <= 0) gameState = 'WIN';
-    }
-
-    if (umbrellaBoss.active && checkRectCollision(player, umbrellaBoss) && player.invul <= 0) {
-        player.hp--; player.invul = 60; document.getElementById('hp-val').innerText = player.hp;
     }
 
     bBullets.forEach((b, i) => {
@@ -201,9 +186,11 @@ function draw() {
         if (gameState === 'GAMEOVER') { ctx.fillStyle = 'red'; ctx.font = '60px Arial Black'; ctx.fillText('GAME OVER', 400, 200); ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO RESTART', 400, 280); }
         if (gameState === 'WIN') { ctx.fillStyle = 'gold'; ctx.font = '60px Arial Black'; ctx.fillText('YOU WIN!', 400, 200); ctx.font = '20px Arial'; ctx.fillText('PRESS ENTER TO REPLAY', 400, 280); }
     }
-    requestAnimationFrame(() => { update(); draw(); });
+    requestAnimationFrame(gameLoop);
 }
-draw();
+
+function gameLoop() { update(); draw(); }
+gameLoop();
 </script>
 </body>
 </html>
