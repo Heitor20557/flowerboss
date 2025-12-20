@@ -6,7 +6,7 @@
     <style>
         body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Arial Black', sans-serif; }
         canvas { background: #5c8cae; border: 6px solid #222; box-shadow: 0 0 50px #000; }
-        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; }
+        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; z-index: 10; }
     </style>
 </head>
 <body>
@@ -21,6 +21,7 @@ canvas.width = 800; canvas.height = 450;
 
 let gameState = 'MENU';
 const keys = {};
+let rainParticles = [];
 
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
@@ -33,31 +34,47 @@ window.addEventListener('keyup', e => keys[e.code] = false);
 let player, boss, umbrellaBoss, pBullets, bBullets, platforms;
 
 function restartGame() {
+    // Reset do Player
     player = { x: 100, y: 300, w: 35, h: 50, vx: 0, vy: 0, speed: 5, jump: -14, grounded: false, hp: 3, shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false };
+    
+    // Reset do Boss 1 (Flor)
     boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0, active: true };
     
-    // NOVO SISTEMA DO GUARDA-CHUVA: Agora tem VX e VY para movimento livre
-    umbrellaBoss = { 
-        x: 400, y: -200, w: 160, h: 120, hp: 150, phase: 1, attackTimer: 0, active: false,
-        vx: 3, vy: 2, state: 'HOVER', targetX: 400
-    };
+    // Reset do Boss 2 (Guarda-Chuva)
+    umbrellaBoss = { x: 400, y: -200, w: 160, h: 120, hp: 150, phase: 1, attackTimer: 0, active: false, vx: 3, vy: 2 };
 
     pBullets = []; bBullets = [];
     platforms = [{x: 80, y: 310, w: 100, h: 15}, {x: 230, y: 230, w: 100, h: 15}, {x: 380, y: 310, w: 100, h: 15}];
+    
+    // Correção: Resetando o HUD visual para o estado inicial
     gameState = 'PLAYING';
     document.getElementById('hud').style.display = 'block';
+    document.getElementById('boss-lvl').innerText = "FLOR FASE 1";
     updateHUD();
 }
 
 function startSecondBoss() {
-    player.hp = 3; updateHUD();
+    // Correção: Reset de posição do Cuphead para o início da fase
+    player.x = 100;
+    player.y = 300;
+    player.vx = 0;
+    player.vy = 0;
+    player.hp = 3; 
+    
+    updateHUD();
     umbrellaBoss.active = true;
-    umbrellaBoss.y = 50; // Ele entra descendo
+    umbrellaBoss.y = 50;
     gameState = 'PLAYING';
     document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 1";
+    
+    // Inicia efeito de chuva
+    rainParticles = [];
+    for(let i=0; i<50; i++) rainParticles.push({x: Math.random()*800, y: Math.random()*450, s: Math.random()*5+2});
 }
 
-function updateHUD() { document.getElementById('hp-val').innerText = player.hp; }
+function updateHUD() { 
+    document.getElementById('hp-val').innerText = player.hp; 
+}
 
 function checkRectCollision(a, b) {
     return a.x < b.x + (b.w || b.size || 10) && a.x + (a.w || a.size || 10) > b.x &&
@@ -67,7 +84,15 @@ function checkRectCollision(a, b) {
 function update() {
     if (gameState !== 'PLAYING') return;
 
-    // Player Logic (Mantida)
+    // Movimentação Chuva
+    if (umbrellaBoss.active) {
+        rainParticles.forEach(p => {
+            p.y += p.s;
+            if (p.y > 450) p.y = -10;
+        });
+    }
+
+    // Player Logic
     if (keys['KeyC'] && player.dashTimer <= 0) { player.isDashing = true; player.dashTimer = 40; player.invul = 15; }
     if (player.isDashing) { player.vx = 15; if (player.dashTimer < 25) player.isDashing = false; } 
     else {
@@ -82,6 +107,7 @@ function update() {
     if (player.y + player.h > canvas.height - 40) { player.y = canvas.height - 40 - player.h; player.vy = 0; player.grounded = true; }
     platforms.forEach(p => { if (player.vy > 0 && checkRectCollision(player, p) && player.y + player.h < p.y + 15) { player.y = p.y - player.h; player.vy = 0; player.grounded = true; } });
 
+    // Tiros Player
     if (keys['KeyX'] && player.shootTimer <= 0) { pBullets.push({x: player.x + player.w, y: player.y + 15, size: 8}); player.shootTimer = 10; }
     if (player.shootTimer > 0) player.shootTimer--;
 
@@ -92,7 +118,7 @@ function update() {
         else if (b.x > canvas.width) pBullets.splice(i, 1);
     });
 
-    // BOSS 1: FLOR (SISTEMA ANTIGO MANTIDO)
+    // BOSS 1: FLOR
     if (boss.active) {
         boss.attackTimer++;
         if (boss.hp < 66 && boss.phase === 1) { boss.phase = 2; document.getElementById('boss-lvl').innerText = "FLOR FASE 2"; }
@@ -103,61 +129,43 @@ function update() {
         if (boss.hp <= 0) { boss.active = false; bBullets = []; gameState = 'NEXT_BOSS'; }
     } 
     
-    // BOSS 2: GUARDA-CHUVA (NOVO SISTEMA DINÂMICO)
+    // BOSS 2: GUARDA-CHUVA
     else if (umbrellaBoss.active) {
         umbrellaBoss.attackTimer++;
-        
-        // Movimento Senoidal (Flutuar)
         if (umbrellaBoss.phase === 1) {
             umbrellaBoss.x += umbrellaBoss.vx;
             umbrellaBoss.y = 50 + Math.sin(umbrellaBoss.attackTimer * 0.05) * 30;
             if (umbrellaBoss.x > 600 || umbrellaBoss.x < 50) umbrellaBoss.vx *= -1;
-            
-            if (umbrellaBoss.attackTimer % 50 === 0) {
-                bBullets.push({x: umbrellaBoss.x + 80, y: umbrellaBoss.y + 100, vx: 0, vy: 5, size: 12, color: '#3498db'});
-            }
+            if (umbrellaBoss.attackTimer % 50 === 0) bBullets.push({x: umbrellaBoss.x + 80, y: umbrellaBoss.y + 100, vx: 0, vy: 5, size: 12, color: '#3498db'});
         } 
-        
-        // Fase 2: Investida (Dash do Boss)
         else if (umbrellaBoss.phase === 2) {
             if (umbrellaBoss.attackTimer % 120 < 60) {
-                // Preparando (Segue o X do player lá no alto)
                 umbrellaBoss.x += (player.x - umbrellaBoss.x) * 0.05;
                 umbrellaBoss.y += (30 - umbrellaBoss.y) * 0.1;
-                umbrellaBoss.w = 60; // Fica fechado
+                umbrellaBoss.w = 60;
             } else {
-                // Ataca para baixo!
                 umbrellaBoss.y += 15;
                 if (umbrellaBoss.y > 450) umbrellaBoss.y = -100;
-                umbrellaBoss.w = 60;
             }
-            // Projéteis laterais enquanto sobe
             if (umbrellaBoss.attackTimer % 30 === 0) bBullets.push({x: umbrellaBoss.x, y: umbrellaBoss.y, vx: -5, vy: 0, size: 10, color: 'white'});
         }
-
-        // Fase 3: Tempestade no Centro
         else if (umbrellaBoss.phase === 3) {
             umbrellaBoss.x += (320 - umbrellaBoss.x) * 0.05;
             umbrellaBoss.y += (100 - umbrellaBoss.y) * 0.05;
             umbrellaBoss.w = 160;
-            // Puxa o player levemente para o centro
-            if (player.x < umbrellaBoss.x + 80) player.x += 1;
-            else player.x -= 1;
-
+            if (player.x < umbrellaBoss.x + 80) player.x += 1; else player.x -= 1;
             if (umbrellaBoss.attackTimer % 20 === 0) {
                 let ang = Math.random() * Math.PI * 2;
                 bBullets.push({x: umbrellaBoss.x + 80, y: umbrellaBoss.y + 50, vx: Math.cos(ang)*6, vy: Math.sin(ang)*6, size: 10, color: '#f1c40f'});
             }
         }
 
-        // Troca de fases por HP
-        if (umbrellaBoss.hp < 100 && umbrellaBoss.phase === 1) { umbrellaBoss.phase = 2; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 2"; umbrellaBoss.attackTimer = 0;}
+        if (umbrellaBoss.hp < 100 && umbrellaBoss.phase === 1) { umbrellaBoss.phase = 2; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 2"; }
         if (umbrellaBoss.hp < 50 && umbrellaBoss.phase === 2) { umbrellaBoss.phase = 3; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE FINAL"; umbrellaBoss.w = 160; }
-        
         if (umbrellaBoss.hp <= 0) gameState = 'WIN';
     }
 
-    // Colisão Projéteis Boss -> Player (Incluso colisão direta com o corpo do Boss 2)
+    // Dano por contato com o corpo do Boss 2
     if (umbrellaBoss.active && checkRectCollision(player, umbrellaBoss) && player.invul <= 0) {
         player.hp--; player.invul = 60; updateHUD();
     }
@@ -174,6 +182,13 @@ function update() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Desenho Chuva no Fundo
+    if (umbrellaBoss.active) {
+        ctx.strokeStyle = 'rgba(174, 214, 241, 0.4)'; ctx.lineWidth = 1;
+        rainParticles.forEach(p => { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y+10); ctx.stroke(); });
+    }
+
     ctx.fillStyle = '#4e7a2a'; ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
 
     if (gameState === 'MENU' || gameState === 'NEXT_BOSS' || gameState === 'GAMEOVER' || gameState === 'WIN') {
@@ -197,15 +212,11 @@ function draw() {
         if (umbrellaBoss.active) {
             ctx.save();
             ctx.translate(umbrellaBoss.x + umbrellaBoss.w/2, umbrellaBoss.y + 50);
-            if (umbrellaBoss.phase === 2 && umbrellaBoss.y > 50) ctx.rotate(Math.PI); // Gira quando ataca
-            
-            // Desenho do Guarda-Chuva Adaptável
+            if (umbrellaBoss.phase === 2 && umbrellaBoss.y > 50) ctx.rotate(Math.PI);
             ctx.fillStyle = umbrellaBoss.phase === 3 ? '#5b2c6f' : '#2e86c1';
             ctx.strokeStyle = 'white'; ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(0, 0, umbrellaBoss.w/2, Math.PI, 0); // Topo
-            ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 80); ctx.stroke(); // Cabo
+            ctx.beginPath(); ctx.arc(0, 0, umbrellaBoss.w/2, Math.PI, 0); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 80); ctx.stroke();
             ctx.restore();
         }
 
