@@ -2,16 +2,16 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Floral Fury - Boss Fight</title>
+    <title>Floral Fury - Versão Estável</title>
     <style>
         body { margin: 0; background: #1a1a1a; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Arial Black', sans-serif; }
-        canvas { background: #5c8cae; border: 6px solid #222; box-shadow: 0 0 50px #000; }
-        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; }
+        canvas { background: #5c8cae; border: 6px solid #222; box-shadow: 0 0 50px #000; image-rendering: pixelated; }
+        #hud { position: absolute; top: 20px; left: 20px; color: #ff3e3e; font-size: 24px; text-shadow: 2px 2px #000; display: none; z-index: 10; }
     </style>
 </head>
 <body>
 
-<div id="hud">HP: <span id="hp-val">3</span> | BOSS: <span id="boss-lvl">FASE 1</span></div>
+<div id="hud">HP: <span id="hp-val">3</span> | <span id="boss-lvl">FASE 1</span></div>
 <canvas id="gameCanvas"></canvas>
 
 <script>
@@ -20,6 +20,7 @@ const ctx = canvas.getContext('2d');
 canvas.width = 800; canvas.height = 450;
 
 let gameState = 'MENU';
+let animationId; // Para controlar o loop e evitar múltiplas instâncias
 const keys = {};
 
 window.addEventListener('keydown', e => {
@@ -31,22 +32,33 @@ window.addEventListener('keyup', e => keys[e.code] = false);
 let player, boss, pBullets, bBullets, platforms;
 
 function restartGame() {
+    // Cancela o loop anterior antes de começar um novo para evitar lentidão
+    if (animationId) cancelAnimationFrame(animationId);
+
     player = {
         x: 100, y: 300, w: 35, h: 50, vx: 0, vy: 0, 
         speed: 5, jump: -14, grounded: false, hp: 3,
         shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false
     };
-    // A hitbox do Boss agora é focada na cabeça (x, y, w, h da parte superior)
+    
     boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0 };
-    pBullets = []; bBullets = [];
+    
+    // Limpa os arrays para liberar memória
+    pBullets = []; 
+    bBullets = [];
+    
     platforms = [
         {x: 80, y: 310, w: 100, h: 15},
         {x: 230, y: 230, w: 100, h: 15},
         {x: 380, y: 310, w: 100, h: 15}
     ];
+
     gameState = 'PLAYING';
     document.getElementById('hud').style.display = 'block';
     document.getElementById('hp-val').innerText = player.hp;
+    document.getElementById('boss-lvl').innerText = "FASE 1";
+    
+    gameLoop();
 }
 
 function checkRectCollision(a, b) {
@@ -57,6 +69,7 @@ function checkRectCollision(a, b) {
 function update() {
     if (gameState !== 'PLAYING') return;
 
+    // Dash
     if (keys['KeyC'] && player.dashTimer <= 0) {
         player.isDashing = true;
         player.dashTimer = 40;
@@ -74,6 +87,7 @@ function update() {
 
     if (player.dashTimer > 0) player.dashTimer--;
 
+    // Pulo
     if ((keys['Space'] || keys['KeyZ']) && player.grounded) {
         player.vy = player.jump;
         player.grounded = false;
@@ -83,35 +97,41 @@ function update() {
     player.x += player.vx;
     player.y += player.vy;
 
+    // Colisões básicas
     if (player.y + player.h > canvas.height - 40) {
         player.y = canvas.height - 40 - player.h; player.vy = 0; player.grounded = true;
     }
+    
     platforms.forEach(p => {
         if (player.vy > 0 && checkRectCollision(player, p) && player.y + player.h < p.y + 15) {
             player.y = p.y - player.h; player.vy = 0; player.grounded = true;
         }
     });
 
+    // Tiros Player
     if (keys['KeyX'] && player.shootTimer <= 0) {
         pBullets.push({x: player.x + player.w, y: player.y + 15, size: 8});
         player.shootTimer = 10;
     }
     if (player.shootTimer > 0) player.shootTimer--;
 
-    pBullets.forEach((b, i) => {
-        b.x += 12;
-        // Hitbox agora só valida impacto se atingir a área da cabeça definida no objeto boss
-        if (checkRectCollision(b, boss)) {
+    // Update e Limpeza de Tiros Player
+    for (let i = pBullets.length - 1; i >= 0; i--) {
+        pBullets[i].x += 12;
+        if (checkRectCollision(pBullets[i], boss)) {
             boss.hp -= 1.2;
             pBullets.splice(i, 1);
+            continue;
         }
-        if (b.x > canvas.width) pBullets.splice(i, 1);
-    });
+        if (pBullets[i].x > canvas.width) pBullets.splice(i, 1);
+    }
 
+    // Boss Fases
     boss.attackTimer++;
     if (boss.hp < 66 && boss.phase === 1) { boss.phase = 2; document.getElementById('boss-lvl').innerText = "FASE 2"; }
     if (boss.hp < 33 && boss.phase === 2) { boss.phase = 3; document.getElementById('boss-lvl').innerText = "FASE FINAL"; }
 
+    // Ataques Boss
     if (boss.phase === 1 && boss.attackTimer % 90 === 0) {
         bBullets.push({x: boss.x, y: 150, vx: -6, vy: 0, size: 20, color: 'orange'});
     } 
@@ -120,18 +140,26 @@ function update() {
         bBullets.push({x: boss.x, y: 150, vx: Math.cos(angle)*7, vy: Math.sin(angle)*7, size: 15, color: 'yellow'});
     }
     else if (boss.phase === 3 && boss.attackTimer % 50 === 0) {
-        bBullets.push({x: player.x, y: 0, vx: 0, vy: 8, size: 25, color: '#ff00ff'});
+        bBullets.push({x: player.x, y: -20, vx: 0, vy: 8, size: 25, color: '#ff00ff'});
     }
 
-    bBullets.forEach((b, i) => {
-        b.x += b.vx; b.y += b.vy;
-        if (checkRectCollision(b, player) && player.invul <= 0) {
+    // Update e Limpeza de Tiros Boss
+    for (let i = bBullets.length - 1; i >= 0; i--) {
+        bBullets[i].x += bBullets[i].vx;
+        bBullets[i].y += bBullets[i].vy;
+        
+        if (checkRectCollision(bBullets[i], player) && player.invul <= 0) {
             player.hp--; player.invul = 60;
             document.getElementById('hp-val').innerText = player.hp;
             bBullets.splice(i, 1);
+            continue;
         }
-        if (b.x < -50 || b.y > canvas.height) bBullets.splice(i, 1);
-    });
+        
+        // Remove se sair muito da tela (Limpeza de memória)
+        if (bBullets[i].x < -100 || bBullets[i].x > canvas.width + 100 || bBullets[i].y > canvas.height + 100) {
+            bBullets.splice(i, 1);
+        }
+    }
 
     if (player.invul > 0) player.invul--;
     if (player.hp <= 0) gameState = 'GAMEOVER';
@@ -140,6 +168,9 @@ function update() {
 
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Fundo e Chão
+    ctx.fillStyle = '#5c8cae'; ctx.fillRect(0,0,800,450);
     ctx.fillStyle = '#4e7a2a'; ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
 
     if (gameState === 'MENU') {
@@ -150,10 +181,8 @@ function draw() {
     else if (gameState === 'PLAYING') {
         ctx.fillStyle = '#ff69b4'; platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
         
-        // Desenho visual do Boss inspirado na imagem
-        ctx.fillStyle = '#2d5a27'; ctx.fillRect(boss.x + 80, 230, 30, 250); // Caule (Sem Hitbox)
-        
-        // Cabeça (Área com Hitbox)
+        // Boss
+        ctx.fillStyle = '#2d5a27'; ctx.fillRect(boss.x + 80, 230, 30, 250); 
         ctx.fillStyle = boss.phase === 3 ? '#8b0000' : '#ff8c00';
         ctx.beginPath(); ctx.arc(boss.x + 90, 150, 80, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#f7e442'; ctx.fillRect(boss.x + 50, 110, 80, 80);
@@ -167,17 +196,23 @@ function draw() {
         bBullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.size, b.size); });
     } 
     else {
-        ctx.fillStyle = 'black'; ctx.fillRect(0,0,800,450);
+        ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0,0,800,450);
         ctx.fillStyle = gameState === 'GAMEOVER' ? 'red' : 'gold';
         ctx.textAlign = 'center'; ctx.font = '60px Arial Black';
         ctx.fillText(gameState === 'GAMEOVER' ? 'GAME OVER' : 'KNOCKOUT!', 400, 200);
         ctx.fillStyle = 'white'; ctx.font = '20px Arial';
         ctx.fillText('PRESS ENTER TO RESTART', 400, 280);
     }
-    requestAnimationFrame(() => { update(); draw(); });
 }
 
-draw();
+function gameLoop() {
+    update();
+    draw();
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+// Inicia no Menu
+draw(); 
 </script>
 </body>
 </html>
