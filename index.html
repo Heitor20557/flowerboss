@@ -36,7 +36,7 @@ function restartGame() {
         speed: 5, jump: -14, grounded: false, hp: 3,
         shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false
     };
-    // A hitbox do Boss agora é focada na cabeça (x, y, w, h da parte superior)
+    // Hitbox focada na cabeça
     boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0 };
     pBullets = []; bBullets = [];
     platforms = [
@@ -44,9 +44,12 @@ function restartGame() {
         {x: 230, y: 230, w: 100, h: 15},
         {x: 380, y: 310, w: 100, h: 15}
     ];
+    
+    // CONSERTO: Resetando o HUD visual imediatamente
     gameState = 'PLAYING';
     document.getElementById('hud').style.display = 'block';
     document.getElementById('hp-val').innerText = player.hp;
+    document.getElementById('boss-lvl').innerText = "FASE 1";
 }
 
 function checkRectCollision(a, b) {
@@ -100,7 +103,6 @@ function update() {
 
     pBullets.forEach((b, i) => {
         b.x += 12;
-        // Hitbox agora só valida impacto se atingir a área da cabeça definida no objeto boss
         if (checkRectCollision(b, boss)) {
             boss.hp -= 1.2;
             pBullets.splice(i, 1);
@@ -109,8 +111,15 @@ function update() {
     });
 
     boss.attackTimer++;
-    if (boss.hp < 66 && boss.phase === 1) { boss.phase = 2; document.getElementById('boss-lvl').innerText = "FASE 2"; }
-    if (boss.hp < 33 && boss.phase === 2) { boss.phase = 3; document.getElementById('boss-lvl').innerText = "FASE FINAL"; }
+    // Fases do Boss
+    if (boss.hp < 66 && boss.phase === 1) { 
+        boss.phase = 2; 
+        document.getElementById('boss-lvl').innerText = "FASE 2"; 
+    }
+    if (boss.hp < 33 && boss.phase === 2) { 
+        boss.phase = 3; 
+        document.getElementById('boss-lvl').innerText = "FASE FINAL"; 
+    }
 
     if (boss.phase === 1 && boss.attackTimer % 90 === 0) {
         bBullets.push({x: boss.x, y: 150, vx: -6, vy: 0, size: 20, color: 'orange'});
@@ -150,19 +159,15 @@ function draw() {
     else if (gameState === 'PLAYING') {
         ctx.fillStyle = '#ff69b4'; platforms.forEach(p => ctx.fillRect(p.x, p.y, p.w, p.h));
         
-        // Desenho visual do Boss inspirado na imagem
-        ctx.fillStyle = '#2d5a27'; ctx.fillRect(boss.x + 80, 230, 30, 250); // Caule (Sem Hitbox)
+        ctx.fillStyle = '#2d5a27'; ctx.fillRect(boss.x + 80, 230, 30, 250); // Caule
         
-        // Cabeça (Área com Hitbox)
         ctx.fillStyle = boss.phase === 3 ? '#8b0000' : '#ff8c00';
         ctx.beginPath(); ctx.arc(boss.x + 90, 150, 80, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#f7e442'; ctx.fillRect(boss.x + 50, 110, 80, 80);
 
-        // Player
         ctx.fillStyle = player.invul % 4 > 1 ? 'transparent' : (player.isDashing ? 'white' : 'red');
         ctx.fillRect(player.x, player.y, player.w, player.h);
 
-        // Tiros
         ctx.fillStyle = '#00f2ff'; pBullets.forEach(b => ctx.fillRect(b.x, b.y, b.size, b.size));
         bBullets.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, b.y, b.size, b.size); });
     } 
