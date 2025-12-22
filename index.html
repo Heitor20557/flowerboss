@@ -36,7 +36,6 @@ function restartGame() {
     player = { x: 100, y: 300, w: 35, h: 50, vx: 0, vy: 0, speed: 5, jump: -14, grounded: false, hp: 3, shootTimer: 0, invul: 0, dashTimer: 0, isDashing: false };
     boss = { x: 550, y: 70, w: 180, h: 160, hp: 100, phase: 1, attackTimer: 0, active: true };
     
-    // NOVO SISTEMA DO GUARDA-CHUVA: Agora tem VX e VY para movimento livre
     umbrellaBoss = { 
         x: 400, y: -200, w: 160, h: 120, hp: 150, phase: 1, attackTimer: 0, active: false,
         vx: 3, vy: 2, state: 'HOVER', targetX: 400
@@ -46,13 +45,22 @@ function restartGame() {
     platforms = [{x: 80, y: 310, w: 100, h: 15}, {x: 230, y: 230, w: 100, h: 15}, {x: 380, y: 310, w: 100, h: 15}];
     gameState = 'PLAYING';
     document.getElementById('hud').style.display = 'block';
+    
+    // CORREÇÃO 1: Reseta o texto do HUD para a Fase 1 ao reiniciar o jogo
+    document.getElementById('boss-lvl').innerText = "FLOR FASE 1";
     updateHUD();
 }
 
 function startSecondBoss() {
+    // CORREÇÃO 2: Reseta a posição do personagem ao mudar para o segundo boss
+    player.x = 100;
+    player.y = 300;
+    player.vx = 0;
+    player.vy = 0;
+    
     player.hp = 3; updateHUD();
     umbrellaBoss.active = true;
-    umbrellaBoss.y = 50; // Ele entra descendo
+    umbrellaBoss.y = 50; 
     gameState = 'PLAYING';
     document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 1";
 }
@@ -67,7 +75,6 @@ function checkRectCollision(a, b) {
 function update() {
     if (gameState !== 'PLAYING') return;
 
-    // Player Logic (Mantida)
     if (keys['KeyC'] && player.dashTimer <= 0) { player.isDashing = true; player.dashTimer = 40; player.invul = 15; }
     if (player.isDashing) { player.vx = 15; if (player.dashTimer < 25) player.isDashing = false; } 
     else {
@@ -92,7 +99,6 @@ function update() {
         else if (b.x > canvas.width) pBullets.splice(i, 1);
     });
 
-    // BOSS 1: FLOR (SISTEMA ANTIGO MANTIDO)
     if (boss.active) {
         boss.attackTimer++;
         if (boss.hp < 66 && boss.phase === 1) { boss.phase = 2; document.getElementById('boss-lvl').innerText = "FLOR FASE 2"; }
@@ -103,11 +109,9 @@ function update() {
         if (boss.hp <= 0) { boss.active = false; bBullets = []; gameState = 'NEXT_BOSS'; }
     } 
     
-    // BOSS 2: GUARDA-CHUVA (NOVO SISTEMA DINÂMICO)
     else if (umbrellaBoss.active) {
         umbrellaBoss.attackTimer++;
         
-        // Movimento Senoidal (Flutuar)
         if (umbrellaBoss.phase === 1) {
             umbrellaBoss.x += umbrellaBoss.vx;
             umbrellaBoss.y = 50 + Math.sin(umbrellaBoss.attackTimer * 0.05) * 30;
@@ -118,29 +122,23 @@ function update() {
             }
         } 
         
-        // Fase 2: Investida (Dash do Boss)
         else if (umbrellaBoss.phase === 2) {
             if (umbrellaBoss.attackTimer % 120 < 60) {
-                // Preparando (Segue o X do player lá no alto)
                 umbrellaBoss.x += (player.x - umbrellaBoss.x) * 0.05;
                 umbrellaBoss.y += (30 - umbrellaBoss.y) * 0.1;
-                umbrellaBoss.w = 60; // Fica fechado
+                umbrellaBoss.w = 60;
             } else {
-                // Ataca para baixo!
                 umbrellaBoss.y += 15;
                 if (umbrellaBoss.y > 450) umbrellaBoss.y = -100;
                 umbrellaBoss.w = 60;
             }
-            // Projéteis laterais enquanto sobe
             if (umbrellaBoss.attackTimer % 30 === 0) bBullets.push({x: umbrellaBoss.x, y: umbrellaBoss.y, vx: -5, vy: 0, size: 10, color: 'white'});
         }
 
-        // Fase 3: Tempestade no Centro
         else if (umbrellaBoss.phase === 3) {
             umbrellaBoss.x += (320 - umbrellaBoss.x) * 0.05;
             umbrellaBoss.y += (100 - umbrellaBoss.y) * 0.05;
             umbrellaBoss.w = 160;
-            // Puxa o player levemente para o centro
             if (player.x < umbrellaBoss.x + 80) player.x += 1;
             else player.x -= 1;
 
@@ -150,14 +148,12 @@ function update() {
             }
         }
 
-        // Troca de fases por HP
         if (umbrellaBoss.hp < 100 && umbrellaBoss.phase === 1) { umbrellaBoss.phase = 2; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE 2"; umbrellaBoss.attackTimer = 0;}
         if (umbrellaBoss.hp < 50 && umbrellaBoss.phase === 2) { umbrellaBoss.phase = 3; document.getElementById('boss-lvl').innerText = "UMBRELLA FASE FINAL"; umbrellaBoss.w = 160; }
         
         if (umbrellaBoss.hp <= 0) gameState = 'WIN';
     }
 
-    // Colisão Projéteis Boss -> Player (Incluso colisão direta com o corpo do Boss 2)
     if (umbrellaBoss.active && checkRectCollision(player, umbrellaBoss) && player.invul <= 0) {
         player.hp--; player.invul = 60; updateHUD();
     }
@@ -197,15 +193,14 @@ function draw() {
         if (umbrellaBoss.active) {
             ctx.save();
             ctx.translate(umbrellaBoss.x + umbrellaBoss.w/2, umbrellaBoss.y + 50);
-            if (umbrellaBoss.phase === 2 && umbrellaBoss.y > 50) ctx.rotate(Math.PI); // Gira quando ataca
+            if (umbrellaBoss.phase === 2 && umbrellaBoss.y > 50) ctx.rotate(Math.PI); 
             
-            // Desenho do Guarda-Chuva Adaptável
             ctx.fillStyle = umbrellaBoss.phase === 3 ? '#5b2c6f' : '#2e86c1';
             ctx.strokeStyle = 'white'; ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(0, 0, umbrellaBoss.w/2, Math.PI, 0); // Topo
+            ctx.arc(0, 0, umbrellaBoss.w/2, Math.PI, 0); 
             ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 80); ctx.stroke(); // Cabo
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 80); ctx.stroke(); 
             ctx.restore();
         }
 
